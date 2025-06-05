@@ -91,9 +91,10 @@ This app uses electron-builder to package and sign the app. Run this command to 
 ```
 npm run package
 ```
-The packaged build expects a compiled copy of the Requestly Webapp inside
-`static/webapp`. Place the webapp assets in this folder before running the
-packaging command.
+`npm run package` now automatically bundles a compiled copy of the Requestly
+Webapp. By default it looks for a build inside `../requestly/app/build` or you
+can specify a custom path using the `WEBAPP_BUILD_DIR` environment variable.
+The assets are copied into `static/webapp` before electron-builder runs.
 
 ## Contributing
 
