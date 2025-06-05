@@ -45,7 +45,8 @@
       "dist",
       "node_modules",
       "package.json",
-      "static"
+      "static",
+      "static/webapp"
     ],
     "protocols": {
       "name": "requestly-internal-protocol",

@@ -1,5 +1,5 @@
 import { autoUpdater } from "electron-updater";
-import { ipcMain } from "electron";
+import { ipcMain, session } from "electron";
 import log from "electron-log";
 
 // I hope you know what you are doing here
@@ -30,14 +30,27 @@ class AutoUpdate {
 
     log.transports.file.level = 'verbose';
     autoUpdater.logger = log;
-    // Now this is triggered after rendering UI
-    // autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.autoDownload = true;
+    this.requestlyBlocked = false;
+
+    session.defaultSession.webRequest.onBeforeRequest(
+      { urls: ["*://*.requestly.io/*"] },
+      (details, callback) => {
+        if (this.requestlyBlocked) return callback({ cancel: true });
+        return callback({});
+      }
+    );
+
     this.updateAvailable = false;
     this.availableUpdateDetails = {};
     this.updateDownloaded = false;
     this.downloadedUpdateDetails = {};
 
     this.init_events();
+
+    autoUpdater
+      .checkForUpdates()
+      .catch((e) => log.error("auto update check failed", e));
   }
 
   init_events = () => {
@@ -56,6 +69,7 @@ class AutoUpdate {
 
     autoUpdater.on("update-not-available", () => {
       log.info("update-not-available");
+      this.requestlyBlocked = true;
     });
 
     autoUpdater.on("download-progress", (progressObj) => {
@@ -68,6 +82,8 @@ class AutoUpdate {
       log.info("update downloaded", updateInfo)
       this.updateDownloaded = true;
       this.downloadedUpdateDetails = updateInfo;
+
+      this.requestlyBlocked = true;
 
       if (this.webAppWindow && this.webAppWindow.webContents) {
         this.webAppWindow.webContents.send("update-downloaded", updateInfo);
@@ -86,8 +102,14 @@ class AutoUpdate {
       log.info("before-quit event triggered", info)
     });
 
-    ipcMain.handle("check-for-updates-and-notify", () => {
-      autoUpdater.checkForUpdatesAndNotify();
+    ipcMain.handle("check-for-updates", async () => {
+      this.requestlyBlocked = false;
+      return autoUpdater.checkForUpdates();
+    });
+
+    ipcMain.handle("download-update", async () => {
+      this.requestlyBlocked = false;
+      return autoUpdater.downloadUpdate();
     });
 
     ipcMain.handle("quit-and-install", () => {
