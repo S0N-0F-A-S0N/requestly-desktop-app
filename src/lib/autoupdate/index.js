@@ -30,7 +30,7 @@ class AutoUpdate {
 
     log.transports.file.level = 'verbose';
     autoUpdater.logger = log;
-    autoUpdater.autoDownload = true;
+    autoUpdater.autoDownload = false;
     this.requestlyBlocked = false;
 
     session.defaultSession.webRequest.onBeforeRequest(

@@ -216,7 +216,7 @@ const createWindow = async () => {
   // TODO @sahil: Prod and Local Urls should be supplied by @requestly/requestly-core-npm package.
   const DESKTOP_APP_URL = isDevelopment
     ? "http://localhost:3000"
-    : `file://${path.join(__dirname, "../../static/webapp/index.html")}`;
+    : `file://${path.join(app.getAppPath(), "static", "webapp", "index.html")}`;
   webAppWindow.loadURL(DESKTOP_APP_URL, {
     extraHeaders: "pragma: no-cache\n",
   });
