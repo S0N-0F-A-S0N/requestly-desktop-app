@@ -4,6 +4,7 @@ const { app } = require("@electron/remote");
 const packageJson = require("../../../package.json");
 // CONSTANTS
 const STATIC_FILES_DIR = require("./sub/staticFilesDirectory");
+const { pathToFileURL } = require("url");
 
 // Static config can't be modified by the user
 const staticConfig = {
@@ -38,7 +39,13 @@ const staticConfig = {
   // That's not true for most other files! Everything should use this instead of __dirname:
   STATIC_FILES_DIR: STATIC_FILES_DIR,
 
-  PROXY_TEST_PAGE_URL: "http://amiusing.requestly.io",
+  PROXY_TEST_PAGE_URL: (() => {
+    const resourcesPath = app.isPackaged
+      ? path.join(process.resourcesPath, "assets")
+      : path.join(__dirname, "../../../assets");
+    const filePath = path.join(resourcesPath, "test-page", "index.html");
+    return pathToFileURL(filePath).href;
+  })(),
 };
 
 module.exports.staticConfig = staticConfig;
