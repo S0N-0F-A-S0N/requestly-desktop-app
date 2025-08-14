@@ -8,6 +8,16 @@ module.exports = {
     "import/extensions": "off",
     "import/prefer-default-export": "off",
     "no-await-in-loop": "off",
+    "prettier/prettier": "off",
+    "no-nested-ternary": "off",
+    "no-restricted-syntax": "off",
+    "no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
   },
   parserOptions: {
     ecmaVersion: 2020,
