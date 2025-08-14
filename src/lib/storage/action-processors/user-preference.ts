@@ -80,6 +80,25 @@ class UserPreferenceActionProcessor extends BaseActionProcessor {
         }
         break;
 
+      case USER_PREFERENCE.GET_PROXY_CHAINS:
+        return this.store.get("proxyChains");
+      case USER_PREFERENCE.SET_PROXY_CHAINS:
+        // @ts-ignore
+        this.store.set({ proxyChains: payload?.data });
+        break;
+      case USER_PREFERENCE.GET_WIREGUARD_CONFIGS:
+        return this.store.get("wireguardConfigs");
+      case USER_PREFERENCE.SET_WIREGUARD_CONFIGS:
+        // @ts-ignore
+        this.store.set({ wireguardConfigs: payload?.data });
+        break;
+      case USER_PREFERENCE.GET_ROUTE_OVERRIDES:
+        return this.store.get("routeOverrides");
+      case USER_PREFERENCE.SET_ROUTE_OVERRIDES:
+        // @ts-ignore
+        this.store.set({ routeOverrides: payload?.data });
+        break;
+
       default:
         console.log("unexpected user preference action", type, payload)
     }
