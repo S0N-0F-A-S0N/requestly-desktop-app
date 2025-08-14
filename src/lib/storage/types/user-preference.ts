@@ -5,6 +5,9 @@ export interface UserPreferenceObj {
     storePath: string;
     filter: string[]
   };
+  proxyChains?: any[];
+  wireguardConfigs?: any[];
+  routeOverrides?: any[];
 }
 
 export interface ISource {
