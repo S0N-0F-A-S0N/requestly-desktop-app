@@ -4,6 +4,11 @@ import { ip } from "address";
 import { RQProxyProvider } from "@requestly/requestly-proxy";
 import RulesDataSource from "../../lib/proxy-interface/rulesFetcher";
 import LoggerService from "../../lib/proxy-interface/loggerService";
+import hostListManager from "../../lib/adblock";
+import ProxyChainManager, { ProxyChain } from "./chainManager";
+import RouteOverrideManager from "./routeOverrideManager";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import preferenceManager from "../../utils/userPreferencesManager";
 
 import getNextAvailablePort from "../getNextAvailablePort";
 // CONFIG
@@ -16,14 +21,17 @@ import { getDefaultProxyPort } from "../storage/cacheUtils";
 import { handleCARegeneration } from "../apps/os/ca/utils";
 import { startHelperSocketServer } from "../helperSocketServer";
 import portfinder from "portfinder";
-import UpstreamProxyManager, {
-  RouteOverride,
-} from "../../lib/proxy-interface/upstreamProxyManager";
+import UpstreamProxyManager, { RouteOverride } from "../../lib/proxy-interface/upstreamProxyManager";
 
 declare global {
   interface Window {
     proxy: any;
   }
+}
+
+interface WireGuardConfig {
+  name: string;
+  configPath: string;
 }
 
 interface IStartProxyOptions {
@@ -32,6 +40,8 @@ interface IStartProxyOptions {
   upstreamProxies?: string[];
   rotationStrategy?: string;
   routeOverrides?: RouteOverride[];
+  proxyChains?: ProxyChain[];
+  wireguardConfigs?: WireGuardConfig[];
 }
 
 interface IStartProxyResult {
@@ -55,7 +65,9 @@ export default async function startProxyServer(
     shouldStartHelperServer = true,
     upstreamProxies = [],
     rotationStrategy = "round-robin",
-    routeOverrides = [],
+    routeOverrides = preferenceManager.getRouteOverrides() || [],
+    proxyChains = preferenceManager.getProxyChains() || [],
+    wireguardConfigs = preferenceManager.getWireguardConfigs() || [],
   } = options;
   // Check if proxy is already listening. If so, close it
   try {
@@ -67,6 +79,8 @@ export default async function startProxyServer(
   }
   const proxyIp = ip()!;
   const targetPort = proxyPort || getDefaultProxyPort();
+  // load adblock hostlists from disk before starting
+  hostListManager.loadAllFromDisk();
 
   const result: IStartProxyResult = {
     success: true,
@@ -88,6 +102,8 @@ export default async function startProxyServer(
     upstreamProxies,
     rotationStrategy,
     routeOverrides,
+    proxyChains,
+    wireguardConfigs,
   });
 
   // start the helper server if not already running
@@ -120,6 +136,8 @@ function startProxyFromModule(
     upstreamProxies: string[];
     rotationStrategy: string;
     routeOverrides: RouteOverride[];
+    proxyChains: ProxyChain[];
+    wireguardConfigs: WireGuardConfig[];
   }
 ) {
   const upstreamManager = new UpstreamProxyManager(
@@ -145,13 +163,30 @@ function startProxyFromModule(
   );
 
   const proxyInstance: any = RQProxyProvider.getInstance().proxy;
+  const chainManager = new ProxyChainManager(opts.proxyChains);
+  const routeManager = new RouteOverrideManager(
+    opts.routeOverrides,
+    chainManager,
+    opts.wireguardConfigs
+  );
 
   proxyInstance.on("request", (ctx: any, callback: Function) => {
-    const host = ctx.clientToProxyRequest?.headers?.host;
+    const host = ctx.clientToProxyRequest?.headers?.host || "";
     const options =
       ctx.proxyToServerRequestOptions || (ctx.proxyToServerRequestOptions = {});
     upstreamManager.applyToRequest(host, options);
-    callback();
+    routeManager
+      .resolve(host)
+      .then((endpoint) => {
+        if (endpoint) {
+          options.agent = new HttpsProxyAgent(endpoint);
+        }
+        callback();
+      })
+      .catch((err) => {
+        logger.error("route override failed", err);
+        callback();
+      });
   });
 
   proxyInstance.on(
@@ -167,4 +202,18 @@ function startProxyFromModule(
 
   // Helper server needs http port, hence
   window.proxy = proxyInstance;
+  // check every request against loaded hostlists
+  window.proxy.onRequest((ctx: any, callback: any) => {
+    const hostHeader = ctx.clientToProxyRequest.headers.host || "";
+    const hostname = hostHeader.split(":")[0];
+    const blockedBy = hostListManager.checkHost(hostname);
+    if (blockedBy) {
+      ctx.proxyToClientResponse.writeHead(403, {
+        "Content-Type": "text/plain",
+      });
+      ctx.proxyToClientResponse.end(`Blocked by ${blockedBy}`);
+      return;
+    }
+    return callback();
+  });
 }
