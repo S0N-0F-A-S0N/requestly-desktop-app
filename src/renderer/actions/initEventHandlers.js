@@ -28,8 +28,8 @@ import { sendMessageToExtension } from "./helperSocketServer";
 import IosSimulatorDevice from "./apps/mobile/iosSimulator";
 
 const initEventHandlers = () => {
-  ipcRenderer.on("start-proxy-server", async () => {
-    const PROXY_RESULT = await startProxyServer();
+  ipcRenderer.on("start-proxy-server", async (event, options) => {
+    const PROXY_RESULT = await startProxyServer(options);
     ipcRenderer.send("reply-start-proxy-server", PROXY_RESULT);
     ipcRenderer.send("proxy-config-updated", getProxyConfig());
   });

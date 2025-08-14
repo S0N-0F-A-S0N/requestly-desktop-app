@@ -68,6 +68,18 @@ const userPreferences = {
     key: "error_tracking_enabled",
     defaultValue: true,
   },
+  PROXY_CHAINS: {
+    key: "proxy_chains",
+    defaultValue: [],
+  },
+  WIREGUARD_CONFIGS: {
+    key: "wireguard_configs",
+    defaultValue: [],
+  },
+  ROUTE_OVERRIDES: {
+    key: "route_overrides",
+    defaultValue: [],
+  },
 };
 
 module.exports.userPreferences = userPreferences;

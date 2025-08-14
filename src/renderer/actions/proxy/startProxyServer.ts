@@ -16,11 +16,26 @@ import { getDefaultProxyPort } from "../storage/cacheUtils";
 import { handleCARegeneration } from "../apps/os/ca/utils";
 import { startHelperSocketServer } from "../helperSocketServer";
 import portfinder from "portfinder";
+import UpstreamProxyManager from "../../lib/proxy-interface/upstreamProxyManager";
 
 declare global {
   interface Window {
     proxy: any;
   }
+}
+
+interface RouteOverride {
+  hostPattern: string;
+  proxyChain?: string;
+  vpn?: string;
+}
+
+interface IStartProxyOptions {
+  proxyPort?: number;
+  shouldStartHelperServer?: boolean;
+  upstreamProxies?: string[];
+  rotationStrategy?: string;
+  routeOverrides?: RouteOverride[];
 }
 
 interface IStartProxyResult {
@@ -37,9 +52,15 @@ const DEFAULT_SOCKET_SERVER_PORT = 59763;
 
 // this automatically stops the old server before starting the new one
 export default async function startProxyServer(
-  proxyPort?: number,
-  shouldStartHelperServer = true
+  options: IStartProxyOptions = {}
 ): Promise<IStartProxyResult> {
+  const {
+    proxyPort,
+    shouldStartHelperServer = true,
+    upstreamProxies = [],
+    rotationStrategy = "round-robin",
+    routeOverrides = [],
+  } = options;
   // Check if proxy is already listening. If so, close it
   try {
     window.proxy.close();
@@ -67,7 +88,11 @@ export default async function startProxyServer(
 
   global.rq.proxyServerStatus = { port: FINAL_PROXY_PORT };
 
-  startProxyFromModule(result.port);
+  startProxyFromModule(result.port, {
+    upstreamProxies,
+    rotationStrategy,
+    routeOverrides,
+  });
 
   // start the helper server if not already running
   if (shouldStartHelperServer) {
@@ -93,13 +118,29 @@ export default async function startProxyServer(
   return result;
 }
 
-function startProxyFromModule(PROXY_PORT: number) {
+function startProxyFromModule(
+  PROXY_PORT: number,
+  opts: {
+    upstreamProxies: string[];
+    rotationStrategy: string;
+    routeOverrides: RouteOverride[];
+  }
+) {
+  const upstreamManager = new UpstreamProxyManager(
+    opts.upstreamProxies,
+    opts.routeOverrides,
+    opts.rotationStrategy
+  );
+
   const proxyConfig = {
     port: PROXY_PORT,
     // @ts-ignore
     certPath: CERTS_PATH,
     rootCertPath: ROOT_CERT_PATH,
     onCARegenerated: handleCARegeneration,
+    upstreamProxies: opts.upstreamProxies,
+    rotationStrategy: opts.rotationStrategy,
+    routeOverrides: opts.routeOverrides,
   };
   RQProxyProvider.createInstance(
     proxyConfig,
@@ -107,6 +148,21 @@ function startProxyFromModule(PROXY_PORT: number) {
     new LoggerService()
   );
 
+  const proxyInstance: any = RQProxyProvider.getInstance().proxy;
+
+  proxyInstance.on("request", (ctx: any, callback: Function) => {
+    upstreamManager.applyToRequest(
+      ctx.clientToProxyRequest?.headers?.host,
+      ctx.proxyToServerRequestOptions || {}
+    );
+    callback();
+  });
+
+  proxyInstance.on("connect", (req: any, socket: any, head: any, callback: Function) => {
+    upstreamManager.applyToRequest(req?.url, req);
+    callback();
+  });
+
   // Helper server needs http port, hence
-  window.proxy = RQProxyProvider.getInstance().proxy;
+  window.proxy = proxyInstance;
 }
