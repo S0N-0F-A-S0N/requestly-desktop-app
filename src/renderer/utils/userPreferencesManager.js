@@ -33,6 +33,28 @@ class PreferenceManager {
           userPreferences.DEFAULT_PROXY_PORT.defaultValue,
       },
     },
+    network: {
+      type: "object",
+      properties: {
+        [userPreferences.PROXY_CHAINS.key]: {
+          type: "array",
+        },
+        [userPreferences.WIREGUARD_CONFIGS.key]: {
+          type: "array",
+        },
+        [userPreferences.ROUTE_OVERRIDES.key]: {
+          type: "array",
+        },
+      },
+      default: {
+        [userPreferences.PROXY_CHAINS.key]:
+          userPreferences.PROXY_CHAINS.defaultValue,
+        [userPreferences.WIREGUARD_CONFIGS.key]:
+          userPreferences.WIREGUARD_CONFIGS.defaultValue,
+        [userPreferences.ROUTE_OVERRIDES.key]:
+          userPreferences.ROUTE_OVERRIDES.defaultValue,
+      },
+    },
     sentry: {
       type: "object",
       properties: {
@@ -107,6 +129,45 @@ class PreferenceManager {
 
   resetPreferences = () => {
     this.store.reset("app_behaviour", "proxy", "certificate");
+  };
+
+  getProxyChains = () => {
+    return this.store.get(
+      `network.${userPreferences.PROXY_CHAINS.key}`
+    );
+  };
+
+  setProxyChains = (value) => {
+    return this.store.set(
+      `network.${userPreferences.PROXY_CHAINS.key}`,
+      value
+    );
+  };
+
+  getWireguardConfigs = () => {
+    return this.store.get(
+      `network.${userPreferences.WIREGUARD_CONFIGS.key}`
+    );
+  };
+
+  setWireguardConfigs = (value) => {
+    return this.store.set(
+      `network.${userPreferences.WIREGUARD_CONFIGS.key}`,
+      value
+    );
+  };
+
+  getRouteOverrides = () => {
+    return this.store.get(
+      `network.${userPreferences.ROUTE_OVERRIDES.key}`
+    );
+  };
+
+  setRouteOverrides = (value) => {
+    return this.store.set(
+      `network.${userPreferences.ROUTE_OVERRIDES.key}`,
+      value
+    );
   };
 }
 

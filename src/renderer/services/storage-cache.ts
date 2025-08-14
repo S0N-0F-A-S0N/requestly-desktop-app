@@ -79,9 +79,12 @@ class StorageCacheService {
 
   restartProxyServer = async (port: number) => {
     // check to not trigger restart when proxy has not even started yet
-    if(RQProxyProvider.rqProxyInstance){
-      console.log("restarting proxy server on new port")
-      const result = await startProxyServer(port, false)
+    if (RQProxyProvider.rqProxyInstance) {
+      console.log("restarting proxy server on new port");
+      const result = await startProxyServer({
+        proxyPort: port,
+        shouldStartHelperServer: false,
+      });
       if(result.success) {
         ipcRenderer.invoke("proxy-restarted", {
           port: result.port,
