@@ -4,6 +4,7 @@ import { ip } from "address";
 import { RQProxyProvider } from "@requestly/requestly-proxy";
 import RulesDataSource from "../../lib/proxy-interface/rulesFetcher";
 import LoggerService from "../../lib/proxy-interface/loggerService";
+import adblock from "../../../lib/adblock";
 
 import getNextAvailablePort from "../getNextAvailablePort";
 // CONFIG
@@ -108,5 +109,18 @@ function startProxyFromModule(PROXY_PORT: number) {
   );
 
   // Helper server needs http port, hence
-  window.proxy = RQProxyProvider.getInstance().proxy;
+  const proxyInstance = RQProxyProvider.getInstance().proxy;
+  proxyInstance.on("request", (ctx: any, next: any) => {
+    const host = ctx?.clientToProxyRequest?.headers?.host;
+    if (host && adblock.shouldBlock(host)) {
+      ctx.proxyToClientResponse.writeHead(403, {
+        "content-type": "text/plain",
+      });
+      ctx.proxyToClientResponse.end("Blocked by Requestly");
+    } else {
+      next();
+    }
+  });
+
+  window.proxy = proxyInstance;
 }
