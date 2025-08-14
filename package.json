@@ -312,7 +312,7 @@
     "ws": "^8.2.3",
     "yargs": "^17.2.1"
   },
-  "devEngines": {
+  "engines": {
     "node": ">=20.x",
     "npm": ">=9.x"
   },
