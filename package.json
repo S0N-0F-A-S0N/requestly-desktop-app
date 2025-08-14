@@ -240,8 +240,8 @@
     "prettier": "^2.4.1",
     "react-refresh": "^0.14.0",
     "rimraf": "^3.0.2",
-    "sass": "^1.42.1",
-    "sass-loader": "^12.2.0",
+    "sass": "^1.90.0",
+    "sass-loader": "^16.0.5",
     "style-loader": "^3.3.0",
     "terser-webpack-plugin": "^5.2.4",
     "ts-loader": "^9.2.6",
@@ -312,7 +312,7 @@
     "ws": "^8.2.3",
     "yargs": "^17.2.1"
   },
-  "devEngines": {
+  "engines": {
     "node": ">=20.x",
     "npm": ">=9.x"
   },
