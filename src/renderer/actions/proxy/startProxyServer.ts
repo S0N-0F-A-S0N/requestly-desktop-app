@@ -4,6 +4,7 @@ import { ip } from "address";
 import { RQProxyProvider } from "@requestly/requestly-proxy";
 import RulesDataSource from "../../lib/proxy-interface/rulesFetcher";
 import LoggerService from "../../lib/proxy-interface/loggerService";
+import hostListManager from "../../lib/adblock";
 
 import getNextAvailablePort from "../getNextAvailablePort";
 // CONFIG
@@ -50,6 +51,8 @@ export default async function startProxyServer(
   }
   const proxyIp = ip()!;
   const targetPort = proxyPort || getDefaultProxyPort();
+  // load adblock hostlists from disk before starting
+  hostListManager.loadAllFromDisk();
 
   const result: IStartProxyResult = {
     success: true,
@@ -109,4 +112,18 @@ function startProxyFromModule(PROXY_PORT: number) {
 
   // Helper server needs http port, hence
   window.proxy = RQProxyProvider.getInstance().proxy;
+  // check every request against loaded hostlists
+  window.proxy.onRequest((ctx: any, callback: any) => {
+    const hostHeader = ctx.clientToProxyRequest.headers.host || "";
+    const hostname = hostHeader.split(":")[0];
+    const blockedBy = hostListManager.checkHost(hostname);
+    if (blockedBy) {
+      ctx.proxyToClientResponse.writeHead(403, {
+        "Content-Type": "text/plain",
+      });
+      ctx.proxyToClientResponse.end(`Blocked by ${blockedBy}`);
+      return;
+    }
+    return callback();
+  });
 }
