@@ -16,18 +16,14 @@ import { getDefaultProxyPort } from "../storage/cacheUtils";
 import { handleCARegeneration } from "../apps/os/ca/utils";
 import { startHelperSocketServer } from "../helperSocketServer";
 import portfinder from "portfinder";
-import UpstreamProxyManager from "../../lib/proxy-interface/upstreamProxyManager";
+import UpstreamProxyManager, {
+  RouteOverride,
+} from "../../lib/proxy-interface/upstreamProxyManager";
 
 declare global {
   interface Window {
     proxy: any;
   }
-}
-
-interface RouteOverride {
-  hostPattern: string;
-  proxyChain?: string;
-  vpn?: string;
 }
 
 interface IStartProxyOptions {
@@ -151,17 +147,23 @@ function startProxyFromModule(
   const proxyInstance: any = RQProxyProvider.getInstance().proxy;
 
   proxyInstance.on("request", (ctx: any, callback: Function) => {
-    upstreamManager.applyToRequest(
-      ctx.clientToProxyRequest?.headers?.host,
-      ctx.proxyToServerRequestOptions || {}
-    );
+    const host = ctx.clientToProxyRequest?.headers?.host;
+    const options =
+      ctx.proxyToServerRequestOptions || (ctx.proxyToServerRequestOptions = {});
+    upstreamManager.applyToRequest(host, options);
     callback();
   });
 
-  proxyInstance.on("connect", (req: any, socket: any, head: any, callback: Function) => {
-    upstreamManager.applyToRequest(req?.url, req);
-    callback();
-  });
+  proxyInstance.on(
+    "connect",
+    (req: any, socket: any, head: any, callback: Function) => {
+      const host = req?.url
+        ? new URL(`https://${req.url}`).hostname
+        : undefined;
+      upstreamManager.applyToRequest(host, req);
+      callback();
+    }
+  );
 
   // Helper server needs http port, hence
   window.proxy = proxyInstance;
