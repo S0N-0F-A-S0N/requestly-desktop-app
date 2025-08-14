@@ -4,6 +4,12 @@ import { ip } from "address";
 import { RQProxyProvider } from "@requestly/requestly-proxy";
 import RulesDataSource from "../../lib/proxy-interface/rulesFetcher";
 import LoggerService from "../../lib/proxy-interface/loggerService";
+import ProxyChainManager, {
+  ProxyChain,
+} from "./chainManager";
+import RouteOverrideManager from "./routeOverrideManager";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import preferenceManager from "../../utils/userPreferencesManager";
 
 import getNextAvailablePort from "../getNextAvailablePort";
 // CONFIG
@@ -29,12 +35,17 @@ interface RouteOverride {
   vpn?: string;
 }
 
+interface WireGuardConfig {
+  name: string;
+  configPath: string;
+}
+
 interface IStartProxyOptions {
   proxyPort?: number;
   shouldStartHelperServer?: boolean;
-  upstreamProxies?: string[];
-  rotationStrategy?: string;
+  proxyChains?: ProxyChain[];
   routeOverrides?: RouteOverride[];
+  wireguardConfigs?: WireGuardConfig[];
 }
 
 interface IStartProxyResult {
@@ -56,9 +67,9 @@ export default async function startProxyServer(
   const {
     proxyPort,
     shouldStartHelperServer = true,
-    upstreamProxies = [],
-    rotationStrategy = "round-robin",
-    routeOverrides = [],
+    proxyChains = preferenceManager.getProxyChains() || [],
+    routeOverrides = preferenceManager.getRouteOverrides() || [],
+    wireguardConfigs = preferenceManager.getWireguardConfigs() || [],
   } = options;
   // Check if proxy is already listening. If so, close it
   try {
@@ -88,9 +99,9 @@ export default async function startProxyServer(
   global.rq.proxyServerStatus = { port: FINAL_PROXY_PORT };
 
   startProxyFromModule(result.port, {
-    upstreamProxies,
-    rotationStrategy,
+    proxyChains,
     routeOverrides,
+    wireguardConfigs,
   });
 
   // start the helper server if not already running
@@ -120,9 +131,9 @@ export default async function startProxyServer(
 function startProxyFromModule(
   PROXY_PORT: number,
   opts: {
-    upstreamProxies: string[];
-    rotationStrategy: string;
+    proxyChains: ProxyChain[];
     routeOverrides: RouteOverride[];
+    wireguardConfigs: WireGuardConfig[];
   }
 ) {
   const proxyConfig = {
@@ -131,9 +142,6 @@ function startProxyFromModule(
     certPath: CERTS_PATH,
     rootCertPath: ROOT_CERT_PATH,
     onCARegenerated: handleCARegeneration,
-    upstreamProxies: opts.upstreamProxies,
-    rotationStrategy: opts.rotationStrategy,
-    routeOverrides: opts.routeOverrides,
   };
   RQProxyProvider.createInstance(
     proxyConfig,
@@ -141,6 +149,32 @@ function startProxyFromModule(
     new LoggerService()
   );
 
+  const proxy = RQProxyProvider.getInstance().proxy;
+  const chainManager = new ProxyChainManager(opts.proxyChains);
+  const routeManager = new RouteOverrideManager(
+    opts.routeOverrides,
+    chainManager,
+    opts.wireguardConfigs
+  );
+
+  proxy.on("request", (ctx: any, callback: any) => {
+    const host = ctx.clientToProxyRequest?.headers?.host || "";
+    routeManager
+      .resolve(host)
+      .then((endpoint) => {
+        if (endpoint) {
+          ctx.proxyToServerRequestOptions =
+            ctx.proxyToServerRequestOptions || {};
+          ctx.proxyToServerRequestOptions.agent = new HttpsProxyAgent(endpoint);
+        }
+        callback();
+      })
+      .catch((err) => {
+        logger.error("route override failed", err);
+        callback();
+      });
+  });
+
   // Helper server needs http port, hence
-  window.proxy = RQProxyProvider.getInstance().proxy;
+  window.proxy = proxy;
 }
